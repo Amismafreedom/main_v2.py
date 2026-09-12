@@ -8,7 +8,7 @@ WORKDIR /app
 RUN pip install --no-cache-dir openai
 
 #Coy the code from GitHub to the container
-COPY..
+COPY . .
 
 # Run the script
 CMD ["python", "main_v2.py"]

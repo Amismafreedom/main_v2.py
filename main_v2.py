@@ -112,11 +112,22 @@ def parse_action(output: str) -> Optional[Tuple[str, List[str]]]:
             line = [l for l in output.split('\n') if "ACTION:" in l][0]
             call = line.split("ACTION:")[1].strip()
             name = call.split('(')[0].strip()
-            # Extract arguments inside parentheses, handling quoted strings with commas
-            args_str = call[call.find('(')+1 : call.rfind(')')]
-            # Regex to split by comma but ignore commas inside quotes
-            args = re.findall(r'(?:[^\s"\']|"(?:\\.|[^"\'])*"|\'(?:\\.|[^\'])*\')+', args_str)
-            return (name, [a.strip(' "\'') for a in args])
+            
+            # Extract the content inside the outermost parentheses
+            start_idx = call.find('(')
+            end_idx = call.rfind(')')
+            if start_idx == -1 or end_idx == -1:
+                return None
+            
+            args_str = call[start_idx + 1 : end_idx]
+            
+            # IMPROVED REGEX: This specifically looks for quoted strings OR non-comma sequences
+            # It treats everything inside "..." or '...' as a single unit.
+            args = re.findall(r'("(?:\\.|[^"\'])*"|\'(?:\\.|[^\'])*\'|[^,]+)', args_str)
+            
+            # Clean up the quotes from the edges of the resulting arguments
+            cleaned_args = [a.strip().strip(' "\'') for a in args]
+            return (name, cleaned_args)
         except Exception: pass
 
     return None

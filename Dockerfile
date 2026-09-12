@@ -2,7 +2,7 @@
 From python:3.11-slim
 
 # Set the working directory
-WORKDIR/app
+WORKDIR /app
 
 # Install the openai library
 RUN pip install --no-cache-dir openai

@@ -132,6 +132,7 @@ def parse_action(output: str) -> Optional[Tuple[str, List[str]]]:
 
     return None
 
+
 # --- AGENT LOOP ---
 
 SYSTEM_PROMPT = """
@@ -192,3 +193,7 @@ if __name__ == "__main__":
     import sys
     goal = sys.argv[1] if len(sys.argv) > 1 else "System Audit: check environment stability."
     print(run_agent_loop(goal))
+
+test_output = 'ACTION: shell_execute("df -h && echo test")'
+print(f"Parser Test: {parse_action(test_output)}")
+

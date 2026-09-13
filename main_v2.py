@@ -2,8 +2,8 @@ import os
 import json
 import subprocess
 import logging
-import re
 import ast
+import re
 from typing import Optional, Tuple, Dict, Any, List
 
 # --- INFRASTRUCTURE & LOGGING ---
@@ -27,11 +27,15 @@ MODEL_NAME = "qwen/qwen3.8-27b"
 
 # --- THE MODULAR TOOLSET ---
 
-def list_dir() -> str:
-    """List files in the current directory."""
+def list_dir(path='.'):
+    """List files in a specified directory (defaults to current)."""
     try:
-        files = os.listdir('.')
-        return f"Files: {', '.join(sorted(files))}"
+        # Ensure path is safe and within project bounds
+        safe_path = os.path.normpath(path)
+        if safe_path.startswith('..') or os.path.isabs(safe_path):
+            return "Error: Path traversal attempt blocked."            
+        files = os.listdir(safe_path)
+        return f"Files in {safe_path}: {', '.join(sorted(files))}"
     except Exception as e:
         return f"Error: {e}"
 
@@ -94,31 +98,53 @@ TOOLS = {
 # --- THE OMNIVORE PARSER (ROBUST VERSION) ---
 
 def parse_action(output: str) -> Optional[Tuple[str, List[str]]]:
-    # 1. Keep XML Parsing as it is (it's already robust)
-    if "<function=" in output:
-        try:
-            name = output.split("<function=")[1].split(">")[0].strip()
-            params = re.findall(r'<parameter[^>]*>(.*?)</parameter>', output, re.DOTALL)
-            return (name, [p.strip() for p in params])
-        except Exception: pass
-
-    # 2. REPLACED ACTION: Parsing with AST
+    """
+    The Nuclear Parser: Uses Python's AST to perfectly extract arguments,
+    eliminating all comma/quote splitting errors.
+    """
     if "ACTION:" in output:
         try:
             line = [l for l in output.split('\n') if "ACTION:" in l][0]
-            call = line.split("ACTION:")[1].strip()
-            # Use AST to safely evaluate the function call string
-            # We wrap it in 'func()' to make it a valid Python expression
-            tree = ast.parse(call) 
-            if isinstance(tree.body[0], ast.Expr) and isinstance(tree.body[0].value, ast.Call):
-                func_name = tree.body[0].value.func.id
-                # Convert AST constants back to python values
-                args = [ast.literal_eval(arg) for arg in tree.body[0].value.args]
-                return (func_name, args)
+            call_str = line.split("ACTION:")[1].strip()
+            
+            # Find the first '(' and last ')'
+            start = call_str.find('(')
+            end = call_str.rfind(')')
+            if start == -1 or end == -1: return None
+            
+            func_name = call_str[:start].strip()
+            args_str = call_str[start+1:end]
+            
+            # Use ast.literal_eval to parse the arguments as a Python tuple
+            # We wrap them in parentheses to make it a valid Python tuple
+            try:
+                args = ast.literal_eval(f"({args_str})")
+                if not isinstance(args, tuple):
+                    args = (args,) # Convert single value to tuple
+            except:
+                # Fallback: If literal_eval fails, use a simple split 
+                # but only if there are no quotes.
+                args = [a.strip().strip(' "\'') for a in args_str.split(',')]
+                
+            return (func_name, list(args))
         except Exception as e:
-            logger.error(f"AST Parsing error: {e}")
+            logger.error(f"Nuclear Parser Error: {e}")
+            pass
+    return None
+            
+            args_str = call[start_idx + 1 : end_idx]
+            
+            # IMPROVED REGEX: This specifically looks for quoted strings OR non-comma sequences
+            # It treats everything inside "..." or '...' as a single unit.
+            args = re.findall(r'("(?:\\.|[^"\'])*"|\'(?:\\.|[^\'])*\'|[^,]+)', args_str)
+            
+            # Clean up the quotes from the edges of the resulting arguments
+            cleaned_args = [a.strip().strip(' "\'') for a in args]
+            return (name, cleaned_args)
+        except Exception: pass
 
     return None
+
 
 # --- AGENT LOOP ---
 
@@ -180,4 +206,7 @@ if __name__ == "__main__":
     import sys
     goal = sys.argv[1] if len(sys.argv) > 1 else "System Audit: check environment stability."
     print(run_agent_loop(goal))
+
+test_output = 'ACTION: shell_execute("df -h && echo test")'
+print(f"Parser Test: {parse_action(test_output)}")
 

@@ -26,11 +26,16 @@ MODEL_NAME = "qwen/qwen3.8-27b"
 
 # --- THE MODULAR TOOLSET ---
 
-def list_dir() -> str:
-    """List files in the current directory."""
+def list_dir(path='.'):
+    """List files in a specified directory (defaults to current)."""
     try:
-        files = os.listdir('.')
-        return f"Files: {', '.join(sorted(files))}"
+        # Ensure path is safe and within project bounds
+        safe_path = os.path.normpath(path)
+        if safe_path.startswith('..') or os.path.isabs(safe_path):
+            return "Error: Path traversal attempt blocked."
+            
+        files = os.listdir(safe_path)
+        return f"Files in {safe_path}: {', '.join(sorted(files))}"
     except Exception as e:
         return f"Error: {e}"
 
